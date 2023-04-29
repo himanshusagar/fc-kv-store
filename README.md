@@ -7,7 +7,7 @@
 4. cd ~/dev/install/
 5. git clone https://github.com/Microsoft/vcpkg.git && cd vcpkg
 6. bash bootstrap-vcpkg.sh
-7. ./vcpkg install leveldb
+7. ./vcpkg install leveldb grpc
 8. cd ~/dev
 9. git clone git@github.com:himanshusagar/fc-kv-store.git
 10. mkdir build && cd build && cmake ../ && make
