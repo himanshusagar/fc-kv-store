@@ -20,28 +20,41 @@ public:
   FCKVStoreRPCClient(std::shared_ptr<Channel> channel)
       : stub_(FCKVStoreRPC::NewStub(channel)) {}
 
-  // Assembles the client's payload, sends it and presents the response back
-  // from the server.
   int FCKVStoreGet(int in)
   {
-    // Data we are sending to the server.
     GetRequest req;
     req.set_key(in);
 
-    // Container for the data we expect from the server.
     GetResponse reply;
-
-    // Context for the client. It could be used to convey extra information to
-    // the server and/or tweak certain RPC behaviors.
     ClientContext context;
-
-    // The actual RPC.
     Status status = stub_->FCKVStoreGet(&context, req, &reply);
 
-    // Act upon its status.
     if (status.ok())
     {
       return reply.value();
+    }
+    else
+    {
+      std::cout << status.error_code() << ": " << status.error_message()
+                << std::endl;
+      return -1;
+    }
+  }
+
+  int FCKVStorePut(int key, int value)
+  {
+    PutRequest req;
+    req.set_key(key);
+    req.set_value(key);
+    
+
+    PutResponse reply;
+    ClientContext context;
+    Status status = stub_->FCKVStorePut(&context, req, &reply);
+
+    if (status.ok())
+    {
+      return reply.status();
     }
     else
     {
@@ -71,12 +84,14 @@ int main()
   signal(SIGINT, sigintHandler);
 
   const std::string target_str = "localhost:50051";
-  FCKVStoreRPCClient greeter(
+  FCKVStoreRPCClient rpcClient(
       grpc::CreateChannel(target_str, grpc::InsecureChannelCredentials()));
   int user(96);
 
-  auto reply = greeter.FCKVStoreGet(96);
-  std::cout << "BasicRPC Int received: " << reply << std::endl;
+  int placedValue = 20;
+  rpcClient.FCKVStorePut(100 , placedValue);
+  auto reply = rpcClient.FCKVStoreGet(100);
+  std::cout << "BasicRPC Int received: " << reply << " " << placedValue << std::endl;
 
   return 0;
 }

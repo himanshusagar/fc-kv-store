@@ -1,56 +1,40 @@
-#include <iostream>
-#include <sstream>
-#include <string>
+#include "store.h"
 
-#include <leveldb/db.h>
+using std::unique_ptr;
 
-using namespace std;
-
-int main(int argc, char** argv)
+KVStore::KVStore(const string dbFileName)
 {
-    // Set up database connection information and open database
-    leveldb::DB* db;
+    leveldb::DB* localPtr = nullptr;
     leveldb::Options options;
     options.create_if_missing = true;
+    leveldb::Status status = leveldb::DB::Open(options, dbFileName,  &localPtr );
+    mDB_ptr = unique_ptr<leveldb::DB>(localPtr);
+    assert(status.ok());
+}
 
-    leveldb::Status status = leveldb::DB::Open(options, "./testdb", &db);
+bool KVStore::put(const string &key, const string& value)
+{
+    leveldb::Status status = mDB_ptr->Put(leveldb::WriteOptions(), key, value);
+    return status.ok();
+}
+bool KVStore::get(const string &key, string& value)
+{
+    leveldb::Status status = mDB_ptr->Get(leveldb::ReadOptions(), key, &value);
+    return status.ok();
+}
 
-    if (false == status.ok())
-    {
-        cerr << "Unable to open/create test database './testdb'" << endl;
-        cerr << status.ToString() << endl;
-        return -1;
-    }
-    
-    // Add 256 values to the database
-    leveldb::WriteOptions writeOptions;
-    for (unsigned int i = 0; i < 256; ++i)
-    {
-        ostringstream keyStream;
-        keyStream << "Key" << i;
-        
-        ostringstream valueStream;
-        valueStream << "Test data value: " << i;
-        
-        db->Put(writeOptions, keyStream.str(), valueStream.str());
-    }
-    
-    // Iterate over each item in the database and print them
-    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
-    
-    for (it->SeekToFirst(); it->Valid(); it->Next())
-    {
-        cout << it->key().ToString() << " : " << it->value().ToString() << endl;
-    }
-    
-    if (false == it->status().ok())
-    {
-        cerr << "An error was found during the scan" << endl;
-        cerr << it->status().ToString() << endl; 
-    }
-    
-    delete it;
-    
-    // Close the database
-    delete db;
+
+bool KVStore::putInt(const int key, const int value)
+{
+    return put( std::to_string(key) , std::to_string(value) );
+}
+
+bool KVStore::getInt(const int key, int& value)
+{
+    string keyStr = std::to_string(key);
+    string valStr = std::to_string(key);
+
+    bool status = put( keyStr , valStr );
+    value = std::stoi(valStr);
+    return status;
 }

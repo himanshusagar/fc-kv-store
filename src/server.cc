@@ -4,6 +4,8 @@
 #include <grpcpp/grpcpp.h>
 #include <signal.h>
 
+#include "store.h"
+
 using grpc::Server;
 using grpc::ServerBuilder;
 using grpc::ServerContext;
@@ -21,12 +23,26 @@ using fc_kv_store::PutResponse;
 
 class FCKVStoreRPCServiceImpl final : public FCKVStoreRPC::Service
 {
+
+private:
+    KVStore *mKVStore = new KVStore("/tmp/kv_store.db");;
+
+public:
+    
     Status FCKVStoreGet(ServerContext* context, const GetRequest* request
                            , GetResponse* reply) override
+    {   
+        int value;
+        mKVStore->getInt( request->key() , value );
+        reply->set_key( request->key() );
+        reply->set_value( value );
+        return Status::OK;
+    }
+    Status FCKVStorePut(ServerContext* context, const PutRequest* request
+                           , PutResponse* reply) override
     {
-        const int output = request->key() * 2;
-        reply->set_value( request->key() );
-        reply->set_value(output);
+        bool status = mKVStore->putInt( request->key() , request->value() );
+        reply->set_status(status);
         return Status::OK;
     }
 
