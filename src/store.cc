@@ -23,18 +23,3 @@ bool KVStore::get(const string &key, string& value)
     return status.ok();
 }
 
-
-bool KVStore::putInt(const int key, const int value)
-{
-    return put( std::to_string(key) , std::to_string(value) );
-}
-
-bool KVStore::getInt(const int key, int& value)
-{
-    string keyStr = std::to_string(key);
-    string valStr = std::to_string(key);
-
-    bool status = put( keyStr , valStr );
-    value = std::stoi(valStr);
-    return status;
-}

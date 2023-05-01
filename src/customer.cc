@@ -45,7 +45,7 @@ public:
   {
     PutRequest req;
     req.set_key(key);
-    req.set_value(key);
+    req.set_value(value);
     
 
     PutResponse reply;
