@@ -4,7 +4,7 @@
 #include <grpcpp/grpcpp.h>
 #include <signal.h>
 
-#include "store.h"
+#include "hash_table.h"
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -25,7 +25,7 @@ class FCKVStoreRPCServiceImpl final : public FCKVStoreRPC::Service
 {
 
 private:
-    KVStore *mKVStore = new KVStore("/tmp/kv_store.db");;
+    HashTable *mTable = new HashTable();;
 
 public:
     
@@ -33,7 +33,7 @@ public:
                            , GetResponse* reply) override
     {   
         int value;
-        mKVStore->getInt( request->key() , value );
+        bool status = mTable->get( request->key() , value );
         reply->set_key( request->key() );
         reply->set_value( value );
         return Status::OK;
@@ -41,7 +41,7 @@ public:
     Status FCKVStorePut(ServerContext* context, const PutRequest* request
                            , PutResponse* reply) override
     {
-        bool status = mKVStore->putInt( request->key() , request->value() );
+        bool status = mTable->put( request->key() , request->value() );
         reply->set_status(status);
         return Status::OK;
     }
@@ -84,9 +84,8 @@ void run_server()
 
 int main()
 {
-
     // "ctrl-C handler"
     signal(SIGINT, sigintHandler);
-
     run_server();
+    return 0;
 }

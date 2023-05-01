@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 
 project(fc_kv_store)
 
-file(GLOB SRCS_Store server.cc store.h store.cc)
+file(GLOB SRCS_Store server.cc store.h store.cc hash_table.h hash_table.cc)
 file(GLOB SRCS_Customer customer.cc)
 
 

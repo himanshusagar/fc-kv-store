@@ -23,3 +23,19 @@ service FCKVStoreRPC {
 }
 ////////////////// RPC end ////////////////
 
+///////////////// Keys and Values /////////
+message OuterTableKey{
+  int32 key = 1;  
+}
+message OuterTableValue{
+  int32 key = 1;  
+  int32 value = 2;  
+}
+
+message InnerTableKey{
+  string key = 1;  
+}
+message InnerTableValue{
+  // TODO : store version numbers with user ids like [u1 : 1] , [u2 : 7]
+  int32 value = 1;  
+}
