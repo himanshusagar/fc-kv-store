@@ -1,6 +1,10 @@
 # CMakeLists.txt
 cmake_minimum_required(VERSION 3.10)
 
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(-w)
+endif()
+
 project(fc_kv_store)
 
 file(GLOB SRCS_Store server.cc store.h store.cc hash_table.h hash_table.cc)

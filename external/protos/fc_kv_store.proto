@@ -48,6 +48,7 @@ message VersionStruct{
   string pubkey = 2; // use to identify user and pass public keys to other users
   map<string, string> itable = 3;
   map<string, int32> vlist = 4; // the version list
+  bytes signature = 5; // the signature of the VersionStruct content
 }
 message OuterTableKey{
   int32 key = 1;  
