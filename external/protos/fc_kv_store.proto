@@ -4,26 +4,52 @@ package fc_kv_store;
 
 ////////////////// RPC begin ////////////////
 message GetRequest{
-  int32 key = 1;
+  string key = 1;
 }
 message GetResponse{
-  int32 key = 1;  
-  int32 value = 2;
+  string key = 1;  
+  string value = 2;
 }
 message PutRequest{
-  int32 key = 1;  
-  int32 value = 2;
+  string key = 1;  
+  string value = 2;
 }
 message PutResponse{
   int32 status = 1;
 }
+message StartOpRequest{
+}
+message CommitOpRequest{
+  VersionStruct v = 1;
+}
+message AbortOpRequest{
+}
+message StartOpResponse{
+  repeated VersionStruct versions = 1;
+}
+message CommitOpResponse{
+}
+message AbortOpResponse{
+}
+
+
 service FCKVStoreRPC {
   rpc FCKVStoreGet (GetRequest) returns (GetResponse) {}
   rpc FCKVStorePut (PutRequest) returns (PutResponse) {}
+  rpc FCKVStoreStartOp (StartOpRequest) returns (StartOpResponse) {}
+  rpc FCKVStoreCommitOp (CommitOpRequest) returns (CommitOpResponse) {}
+  rpc FCKVStoreAbortOp (AbortOpRequest) returns (AbortOpResponse) {}
 }
 ////////////////// RPC end ////////////////
 
 ///////////////// Keys and Values /////////
+message VersionStruct{
+  int32 version = 1;
+  string pubkey = 2; // use to identify user and pass public keys to other users
+  map<string, string> itable = 3;
+  map<string, int32> vlist = 4; // the version list
+  bytes signature = 5; // the signature of the VersionStruct content
+}
 message OuterTableKey{
   int32 key = 1;  
 }

@@ -13,3 +13,4 @@
 10. mkdir build && cd build && cmake ../ && make
 11. cd bin
 12. ./simple_kv_store
+13. sudo apt-get install libssl-dev

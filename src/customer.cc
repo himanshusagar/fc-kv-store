@@ -1,72 +1,174 @@
 #include "fc_kv_store.grpc.pb.h"
 
-#include <grpcpp/ext/proto_server_reflection_plugin.h>
-#include <grpcpp/grpcpp.h>
-#include <signal.h>
+#include <filesystem>
+#include <string>
+#include <vector>
+#include <iostream>
+#include <openssl/rsa.h>
+#include <openssl/pem.h>
 
-using grpc::Channel;
-using grpc::ClientContext;
-using grpc::Status;
+#include "customer.h"
 
-using fc_kv_store::FCKVStoreRPC;
 using fc_kv_store::GetRequest;
 using fc_kv_store::GetResponse;
 using fc_kv_store::PutRequest;
 using fc_kv_store::PutResponse;
+using fc_kv_store::StartOpRequest;
+using fc_kv_store::StartOpResponse;
+using fc_kv_store::CommitOpRequest;
+using fc_kv_store::CommitOpResponse;
 
-class FCKVStoreRPCClient
-{
-public:
-  FCKVStoreRPCClient(std::shared_ptr<Channel> channel)
-      : stub_(FCKVStoreRPC::NewStub(channel)) {}
+std::string privateKeyFile = "private_key.pem";
+std::string publicKeyFile = "public_key.pem";
 
-  int FCKVStoreGet(int in)
-  {
-    GetRequest req;
-    req.set_key(in);
+bool signVersionStruct(VersionStruct& versionStruct) {
+    // Serialize the VersionStruct without the signature field
+    versionStruct.clear_signature();
+    std::string serializedData = versionStruct.SerializeAsString();
 
-    GetResponse reply;
-    ClientContext context;
-    Status status = stub_->FCKVStoreGet(&context, req, &reply);
-
-    if (status.ok())
-    {
-      return reply.value();
+    // Load the private key from the file
+    FILE* privateKeyFilePtr = fopen(privateKeyFile.c_str(), "rb");
+    if (!privateKeyFilePtr) {
+        std::cerr << "Failed to open private key file." << std::endl;
+        return false;
     }
-    else
-    {
-      std::cout << status.error_code() << ": " << status.error_message()
-                << std::endl;
-      return -1;
+
+    RSA* privateKey = PEM_read_RSAPrivateKey(privateKeyFilePtr, nullptr, nullptr, nullptr);
+    fclose(privateKeyFilePtr);
+    if (!privateKey) {
+        std::cerr << "Failed to read private key from file." << std::endl;
+        return false;
     }
+
+    // Calculate the hash of the serialized data
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    SHA256_Update(&sha256, serializedData.c_str(), serializedData.size());
+    SHA256_Final(hash, &sha256);
+
+    // Sign the hash using the private key
+    unsigned int signatureLen = RSA_size(privateKey);
+    std::vector<unsigned char> signature(signatureLen);
+    int result = RSA_sign(NID_sha256, hash, SHA256_DIGEST_LENGTH, signature.data(), &signatureLen, privateKey);
+    RSA_free(privateKey);
+
+    if (result != 1) {
+        std::cerr << "Failed to sign the VersionStruct content." << std::endl;
+        return false;
+    }
+
+    // Set the signature field in the VersionStruct
+    versionStruct.set_signature(signature.data(), signature.size());
+
+    return true;
+}
+
+std::string FCKVClient::Get(std::string key) {
+  std::vector<VersionStruct> all_versions;
+  StartOp(&all_versions);
+
+  // update local version
+  // increment version number
+  VersionStruct new_version = version_;
+  new_version.set_version(version_.version() + 1);
+
+  // update version vector
+  for (auto v : all_versions) {
+    (*new_version.mutable_vlist())[v.pubkey()] = v.version();
+  }
+  // don't forget about ourselves
+  (*new_version.mutable_vlist())[pubkey_] = new_version.version();
+  all_versions.push_back(new_version);
+
+  // sign new version struct
+  if (!signVersionStruct(new_version)) {
+      std::cerr << "Failed to sign the VersionStruct content." << std::endl;
   }
 
-  int FCKVStorePut(int key, int value)
-  {
-    PutRequest req;
-    req.set_key(key);
-    req.set_value(value);
+  // if there's a history conflict, we abort now
+  if (!CheckCompatability(all_versions)) {
+    std::cout << "History incompatability, aborting operation";
+    AbortOp();
+  }
+
+  // Do GetRequest with H(value) from key table
+  GetRequest req;
+  std::string hashvalue = (*new_version.mutable_itable())[key];
+  req.set_key(hashvalue);
+  
+  GetResponse reply;
+  ClientContext context;
+  Status status = stub_->FCKVStoreGet(&context, req, &reply);
+  
+  if (status.ok() && CommitOp(new_version).ok()) {
+    version_ = new_version;
+    return reply.value();
+  }
+  
+  std::cout << status.error_code() << ": " << status.error_message()
+            << std::endl;
+  return nullptr;
+}
+
+int FCKVClient::Put(std::string key, std::string value) {
+  PutRequest req;
+  req.set_key(key);
+  req.set_value(value);
     
+  PutResponse reply;
+  ClientContext context;
+  Status status = stub_->FCKVStorePut(&context, req, &reply);
 
-    PutResponse reply;
-    ClientContext context;
-    Status status = stub_->FCKVStorePut(&context, req, &reply);
+  if (status.ok())
+  {
+    return reply.status();
+  }
+  else
+  {
+    std::cout << status.error_code() << ": " << status.error_message()
+              << std::endl;
+    return -1;
+  }
+}
 
-    if (status.ok())
-    {
-      return reply.status();
-    }
-    else
-    {
-      std::cout << status.error_code() << ": " << status.error_message()
-                << std::endl;
-      return -1;
+// we should expect the server to return the complete list of version structs
+// TODO optimization - only return the diff between what we and the server know
+Status FCKVClient::StartOp(std::vector<VersionStruct>* versions) {
+  StartOpRequest req;
+  StartOpResponse reply;
+  ClientContext context;
+  Status status = stub_->FCKVStoreStartOp(&context, req, &reply);
+  if (status.ok()) {
+    // update local version lists
+    for (VersionStruct v : req->versions()) {
+      versions->push_back(v);
     }
   }
+  return status;
+}
 
+Status FCKVClient::CommitOp(VersionStruct version) {
+  CommitOpRequest req;
+  CommitOpResponse reply;
+  ClientContext context;
+
+  req.set_version(version);
+  return stub_->FCKVStoreCommitOp(&context, req, &reply);
+}
 private:
   std::unique_ptr<FCKVStoreRPC::Stub> stub_;
+  std::unique_ptr<VersionStruct> version_;
+  std::vector<std::unique_ptr<VersionStruct>> versions_;
 };
+
+Status FCKVClient::AbortOp() {
+  // return Status::ok();
+}
+
+bool FCKVClient::CheckCompatability(std::vector<VersionStruct> versions) {
+  return True;
+}
 
 void sigintHandler(int sig_num)
 {
@@ -78,19 +180,83 @@ void sigintHandler(int sig_num)
   std::exit(0);
 }
 
+bool generateRSAKeyPair() {
+    int keyLength = 2048;
+    int exp = RSA_F4; // Standard RSA exponent: 65537
+
+    // Generate RSA key
+    RSA* rsa = RSA_generate_key(keyLength, exp, nullptr, nullptr);
+    if (!rsa) {
+        std::cerr << "Failed to generate RSA key pair." << std::endl;
+        return false;
+    }
+
+    // Write private key to file
+    FILE* privateKeyFilePtr = fopen(privateKeyFile.c_str(), "wb");
+    if (!privateKeyFilePtr) {
+        std::cerr << "Failed to open private key file." << std::endl;
+        RSA_free(rsa);
+        return false;
+    }
+
+    if (!PEM_write_RSAPrivateKey(privateKeyFilePtr, rsa, nullptr, nullptr, 0, nullptr, nullptr)) {
+        std::cerr << "Failed to write private key to file." << std::endl;
+        fclose(privateKeyFilePtr);
+        RSA_free(rsa);
+        return false;
+    }
+
+    fclose(privateKeyFilePtr);
+
+    // Write public key to file
+    FILE* publicKeyFilePtr = fopen(publicKeyFile.c_str(), "wb");
+    if (!publicKeyFilePtr) {
+        std::cerr << "Failed to open public key file." << std::endl;
+        RSA_free(rsa);
+        return false;
+    }
+
+    if (!PEM_write_RSAPublicKey(publicKeyFilePtr, rsa)) {
+        std::cerr << "Failed to write public key to file." << std::endl;
+        fclose(publicKeyFilePtr);
+        RSA_free(rsa);
+        return false;
+    }
+
+    fclose(publicKeyFilePtr);
+    RSA_free(rsa);
+
+    return true;
+}
+
 int main()
 {
   // "ctrl-C handler"
   signal(SIGINT, sigintHandler);
 
-  const std::string target_str = "localhost:50051";
-  FCKVStoreRPCClient rpcClient(
-      grpc::CreateChannel(target_str, grpc::InsecureChannelCredentials()));
-  int user(96);
+  // --START-- Generate private and public key
+  if (std::filesystem::exists(privateKeyFile) || std::filesystem::exists(publicKeyFile)) {
+      std::cerr << "Private or public key file already exists. Please remove or rename them before generating a new key pair." << std::endl;
+      return 1;
+  }
 
-  int placedValue = 20;
-  rpcClient.FCKVStorePut(100 , placedValue);
-  auto reply = rpcClient.FCKVStoreGet(100);
+  if (generateRSAKeyPair()) {
+      std::cout << "RSA key pair generated successfully." << std::endl;
+  } else {
+      std::cerr << "Failed to generate RSA key pair." << std::endl;
+      return 1;
+  }
+  // --END-- Generate private and public key
+
+  const std::string target_str = "localhost:50051";
+  FCKVClient rpcClient(
+    grpc::CreateChannel(target_str, grpc::InsecureChannelCredentials()),
+    "12345");
+  int user(96);
+  
+  std::string placedValue = "20";
+  rpcClient.Put("100" , placedValue);
+  auto reply = rpcClient.Get("100");
   std::cout << "BasicRPC Int received: " << reply << " " << placedValue << std::endl;
 
   return 0;
