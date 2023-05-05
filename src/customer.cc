@@ -19,19 +19,19 @@ std::string FCKVClient::Get(std::string key) {
   // update local version
   // increment version number
   VersionStruct new_version = version_;
-  new_version.set_version(version_.get_version() + 1);
+  new_version.set_version(version_.version() + 1);
 
   // update version vector
   for (auto v : all_versions) {
-    (*new_version.mutable_vlist)[v.get_pubkey()] = v.get_version();
+    (*new_version.mutable_vlist())[v.pubkey()] = v.version();
   }
   // don't forget about ourselves
-  (*new_version.mutable_vlist)[pubkey_] = new_version.get_version();
+  (*new_version.mutable_vlist())[pubkey_] = new_version.version();
   all_versions.push_back(new_version);
 
   // if there's a history conflict, we abort now
   if (!CheckCompatability(all_versions)) {
-    std::cout << "History incompatability, aborting operation" << std::cout;
+    std::cout << "History incompatability, aborting operation";
     AbortOp();
   }
 
@@ -44,7 +44,7 @@ std::string FCKVClient::Get(std::string key) {
   ClientContext context;
   Status status = stub_->FCKVStoreGet(&context, req, &reply);
   
-  if (status.ok() && CommitOp(new_version) == Status::Ok()) {
+  if (status.ok() && CommitOp(new_version).ok()) {
     version_ = new_version;
     return reply.value();
   }
@@ -106,7 +106,7 @@ private:
 };
 
 Status FCKVClient::AbortOp() {
-  return Status::Ok();
+  // return Status::ok();
 }
 
 bool FCKVClient::CheckCompatability(std::vector<VersionStruct> versions) {

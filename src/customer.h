@@ -20,8 +20,8 @@ public:
     : stub_(FCKVStoreRPC::NewStub(channel)),
       pubkey_(pubkey) {}
   
-  std::string Get(string key);
-  int Put(string key, string value);
+  std::string Get(std::string key);
+  int Put(std::string key, std::string value);
   
 private:
   std::unique_ptr<FCKVStoreRPC::Stub> stub_;  // gRPC
