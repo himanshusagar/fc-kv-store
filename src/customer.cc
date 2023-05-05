@@ -75,26 +75,30 @@ std::string FCKVClient::Get(std::string key) {
 
   // update version vector
   for (auto v : all_versions) {
-    (*new_version.mutable_vlist())[v.pubkey()] = v.version();
+    (*new_version.mutable_vlist())[hasher(v.pubkey())] = v.version();
   }
   // don't forget about ourselves
-  (*new_version.mutable_vlist())[pubkey_] = new_version.version();
+  (*new_version.mutable_vlist())[hasher(pubkey_)] = new_version.version();
   all_versions.push_back(new_version);
 
   // sign new version struct
   if (!signVersionStruct(new_version)) {
-      std::cerr << "Failed to sign the VersionStruct content." << std::endl;
+    std::cerr << "Failed to sign the VersionStruct content." << std::endl;
   }
 
   // if there's a history conflict, we abort now
   if (!CheckCompatability(all_versions)) {
-    std::cout << "History incompatability, aborting operation";
+    std::cout << "History incompatability, aborting operation" << std::endl;
     AbortOp();
   }
 
+  if (!UpdateItable(all_versions[0].itablehash()).ok()) {
+    std::cerr << "Problem updating keytable" << std::endl;
+  }
+    
   // Do GetRequest with H(value) from key table
   GetRequest req;
-  std::string hashvalue = (*new_version.mutable_itable())[key];
+  size_t hashvalue = (*itable_.mutable_table())[hasher(key)];
   req.set_key(hashvalue);
   
   GetResponse reply;
@@ -112,24 +116,46 @@ std::string FCKVClient::Get(std::string key) {
 }
 
 int FCKVClient::Put(std::string key, std::string value) {
-  PutRequest req;
-  req.set_key(key);
-  req.set_value(value);
+//   PutRequest req;
+//   req.set_key(key);
+//   req.set_value(value);
     
-  PutResponse reply;
-  ClientContext context;
-  Status status = stub_->FCKVStorePut(&context, req, &reply);
+//   PutResponse reply;
+//   ClientContext context;
+//   Status status = stub_->FCKVStorePut(&context, req, &reply);
 
-  if (status.ok())
-  {
-    return reply.status();
+//   if (status.ok())
+//   {
+//     return reply.status();
+//   }
+//   else
+//   {
+//     std::cout << status.error_code() << ": " << status.error_message()
+//               << std::endl;
+//     return -1;
+//   }
+  return 0;
+}
+
+// fetch key table from most recent version if it is different than ours
+Status FCKVClient::UpdateItable(size_t latest_itablehash) {
+  std::string local_itable;
+  itable_.SerializeToString(&local_itable);
+
+  Status status = Status::OK;
+  if (latest_itablehash != hasher(local_itable)) {
+    GetRequest req;
+    GetResponse reply;
+    ClientContext context;
+
+    req.set_key(latest_itablehash);
+    status = stub_->FCKVStoreGet(&context, req, &reply);
+    // TODO validate (check hashes match)
+    if (status.ok()) {
+      itable_.ParseFromString(reply.value());
+    }
   }
-  else
-  {
-    std::cout << status.error_code() << ": " << status.error_message()
-              << std::endl;
-    return -1;
-  }
+  return status;
 }
 
 // we should expect the server to return the complete list of version structs
@@ -141,7 +167,7 @@ Status FCKVClient::StartOp(std::vector<VersionStruct>* versions) {
   Status status = stub_->FCKVStoreStartOp(&context, req, &reply);
   if (status.ok()) {
     // update local version lists
-    for (VersionStruct v : req->versions()) {
+    for (VersionStruct v : reply.versions()) {
       versions->push_back(v);
     }
   }
@@ -153,21 +179,16 @@ Status FCKVClient::CommitOp(VersionStruct version) {
   CommitOpResponse reply;
   ClientContext context;
 
-  req.set_version(version);
+  req.set_allocated_v(&version);
   return stub_->FCKVStoreCommitOp(&context, req, &reply);
 }
-private:
-  std::unique_ptr<FCKVStoreRPC::Stub> stub_;
-  std::unique_ptr<VersionStruct> version_;
-  std::vector<std::unique_ptr<VersionStruct>> versions_;
-};
 
 Status FCKVClient::AbortOp() {
   // return Status::ok();
 }
 
 bool FCKVClient::CheckCompatability(std::vector<VersionStruct> versions) {
-  return True;
+  return true;
 }
 
 void sigintHandler(int sig_num)

@@ -12,6 +12,7 @@ using grpc::Status;
 
 using fc_kv_store::FCKVStoreRPC;
 using fc_kv_store::VersionStruct;
+using fc_kv_store::KeyTable;
 
 class FCKVClient
 {
@@ -26,8 +27,10 @@ public:
 private:
   std::unique_ptr<FCKVStoreRPC::Stub> stub_;  // gRPC
   VersionStruct version_;                     // local version struct
+  KeyTable itable_;
   std::vector<VersionStruct> versions_;       // global version structs
   std::string pubkey_;                        // this is us
+  std::hash<std::string> hasher;
   
   // acquires global lock on server
   // updates local copies of version lists as returned by the server
@@ -44,4 +47,7 @@ private:
   // If a list of version structs is not totally ordered by >=, there is a
   // history conflict
   bool CheckCompatability(std::vector<VersionStruct> versions);
+
+  // fetch key table from most recent version if it is different than ours
+  Status UpdateItable(size_t tablehash);
 };
