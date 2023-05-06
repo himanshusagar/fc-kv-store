@@ -75,6 +75,7 @@ Status FCKVStoreRPCServiceImpl::FCKVStorePut(
     size_t hashval = hasher_(val);
     status = store_->Put(leveldb::WriteOptions(), std::to_string(hashval), val);
     if (status.ok()) {
+      std::cout << "Store Put OK" << std::endl;
       reply->set_hash(hashval);
       return Status::OK;
     }

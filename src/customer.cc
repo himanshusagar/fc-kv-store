@@ -72,6 +72,12 @@ Status FCKVClient::PreOpValidate(VersionStruct* inprogress, size_t* tblhash) {
   std::vector<VersionStruct> all_versions;
   StartOp(&all_versions);
 
+  if (all_versions.size() == 0) {
+    *inprogress = version_;
+    *tblhash = 0;
+    return Status::OK;
+  }
+
   // find our version and the max version num
   int loc = -1;
   int maxversion = -1;
@@ -207,7 +213,7 @@ int FCKVClient::Put(std::string key, std::string value) {
   status = stub_->FCKVStorePut(&tblcontext, tblreq, &tblreply);
 
   hashvalue = hasher_(serializeditable);
-  serverhash = reply.hash();
+  serverhash = tblreply.hash();
 
   if (hashvalue != serverhash) {
     std::cout << "Server hashed our itable differently than we did. Error!"
@@ -230,10 +236,14 @@ int FCKVClient::Put(std::string key, std::string value) {
 
 // fetch key table from most recent version if it is different than ours
 Status FCKVClient::UpdateItable(size_t latest_itablehash) {
+  Status status = Status::OK;
+  if (latest_itablehash == 0) {
+    return status;
+  }
+
   std::string local_itable;
   itable_.SerializeToString(&local_itable);
 
-  Status status = Status::OK;
   if (latest_itablehash != hasher_(local_itable)) {
     GetRequest req;
     GetResponse reply;
@@ -273,7 +283,8 @@ Status FCKVClient::CommitOp(VersionStruct version) {
   CommitOpResponse reply;
   ClientContext context;
 
-  req.set_allocated_v(&version);
+  VersionStruct* msgversion = req.mutable_v();
+  *msgversion = version;
   req.set_pubkey(pubkey_);
   return stub_->FCKVStoreCommitOp(&context, req, &reply);
 }
