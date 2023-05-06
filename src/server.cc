@@ -3,8 +3,7 @@
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/grpcpp.h>
 #include <signal.h>
-
-#include "hash_table.h"
+#include "server.h"
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -14,62 +13,57 @@ using grpc::ServerReaderWriter;
 using grpc::ServerWriter;
 using grpc::Status;
 
-using fc_kv_store::FCKVStoreRPC;
-using fc_kv_store::GetRequest;
-using fc_kv_store::GetResponse;
-using fc_kv_store::PutRequest;
-using fc_kv_store::PutResponse;
-using fc_kv_store::VersionStruct;
-
-
-class FCKVStoreRPCServiceImpl final : public FCKVStoreRPC::Service
-{
-
-private:
-  HashTable *mTable = new HashTable();
-  std::map<std::string, VersionStruct> versions_;
-
-public:
-
-  Status FCKVStoreStartOp(ServerContext* context, const StartOpRequest* req,
-                          StartOpResponse* res) override {
-    // TODO lock for this user
-    for (auto& [pubkey, vs] : versions_) {
-      res->add_versions(vs);
-    }
-    return Status::OK;
+Status FCKVStoreRPCServiceImpl::FCKVStoreStartOp(
+  ServerContext* context, const StartOpRequest* req, StartOpResponse* res) {
+  // TODO lock for this user
+  for (auto& [pubkey, vs] : vsl_) {
+    res->add_versions(vs);
   }
+  return Status::OK;
+}
   
-  Status FCKVStoreCommitOp(ServerContext* context, const CommitOpRequest* req,
-                           CommitOpResponse* res) override {
-    // TODO unlock
-    versions_[req->pubkey()] = req->v();
-    return Status::OK;
-  }
+Status FCKVStoreRPCServiceImpl::FCKVStoreCommitOp(
+  ServerContext* context, const CommitOpRequest* req, CommitOpResponse* res) {
+  // TODO unlock
+  std::string version;
+  req->v().SerializeToString(&version);
+  vsl_[hasher_(req->pubkey())] = version;
+  return Status::OK;
+}
 
-  Status FCKVStoreAbortOp(ServerContext* context, const AbortOpRequest* req,
-                          AbortOpResponse* res) override {
-    // TODO unlock
-    return Status::OK;
-  }
+Status FCKVStoreRPCServiceImpl::FCKVStoreAbortOp(
+  ServerContext* context, const AbortOpRequest* req, AbortOpResponse* res) {
+  // TODO unlock
+  return Status::OK;
+}
     
-  Status FCKVStoreGet(ServerContext* context, const GetRequest* request
-                      , GetResponse* reply) override {   
-    int value;
-    bool status = mTable->get( request->key() , value );
-    reply->set_key( request->key() );
-    reply->set_value( value );
+Status FCKVStoreRPCServiceImpl::FCKVStoreGet(
+  ServerContext* context, const GetRequest* request, GetResponse* reply) {
+  leveldb::Status status;
+  std::string value;
+  std::string key = std::to_string(request->key());
+  status = store_->Get(leveldb::ReadOptions(), key.c_str(), &value);
+  if (status.ok()) {
+    reply->set_value(value);
     return Status::OK;
   }
-  Status FCKVStorePut(ServerContext* context, const PutRequest* request
-                      , PutResponse* reply) override
-  {
-    bool status = mTable->put( request->key() , request->value() );
-    reply->set_status(status);
-    return Status::OK;
-  }
+  std::cout << "Server Get error with key " << key << std::endl;
+  return Status(grpc::StatusCode::NOT_FOUND, "");
+}
 
-};
+Status FCKVStoreRPCServiceImpl::FCKVStorePut(
+  ServerContext* context, const PutRequest* request, PutResponse* reply) {
+  leveldb::Status status;
+  std::string val = request->value();
+  size_t hashval = hasher_(val);
+  status = store_->Put(leveldb::WriteOptions(), std::to_string(hashval), val);
+  if (status.ok()) {
+    reply->set_hash(hashval);
+    return Status::OK;
+  }
+  std::cout << "Server Put error with key " << hashval << std::endl;
+  return Status(grpc::StatusCode::UNKNOWN, "");
+}
 
 void sigintHandler(int sig_num)
 {

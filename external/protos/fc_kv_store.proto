@@ -34,15 +34,14 @@ message GetRequest{
   uint64 key = 1; // clients always Get by hash value
 }
 message GetResponse{
-  uint64 key = 1;  
-  bytes value = 2; // let the client decide how to read this 
+  bytes value = 1; // let the client decide how to read this 
 }
+// keys are always hash value
 message PutRequest{
-  uint64 key = 1; // keys are always hash value  
-  bytes value = 2;
+  bytes value = 1;
 }
 message PutResponse{
-  int32 status = 1;
+  uint64 hash = 1;
 }
 message StartOpRequest{
 }
@@ -53,7 +52,7 @@ message CommitOpRequest{
 message AbortOpRequest{
 }
 message StartOpResponse{
-  repeated VersionStruct versions = 1;
+  repeated string versions = 1;
 }
 message CommitOpResponse{
 }

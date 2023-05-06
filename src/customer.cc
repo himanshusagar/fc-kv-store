@@ -75,10 +75,10 @@ std::string FCKVClient::Get(std::string key) {
 
   // update version vector
   for (auto v : all_versions) {
-    (*new_version.mutable_vlist())[hasher(v.pubkey())] = v.version();
+    (*new_version.mutable_vlist())[hasher_(v.pubkey())] = v.version();
   }
   // don't forget about ourselves
-  (*new_version.mutable_vlist())[hasher(pubkey_)] = new_version.version();
+  (*new_version.mutable_vlist())[hasher_(pubkey_)] = new_version.version();
   all_versions.push_back(new_version);
 
   // sign new version struct
@@ -98,7 +98,7 @@ std::string FCKVClient::Get(std::string key) {
     
   // Do GetRequest with H(value) from key table
   GetRequest req;
-  size_t hashvalue = (*itable_.mutable_table())[hasher(key)];
+  size_t hashvalue = (*itable_.mutable_table())[hasher_(key)];
   req.set_key(hashvalue);
   
   GetResponse reply;
@@ -143,7 +143,7 @@ Status FCKVClient::UpdateItable(size_t latest_itablehash) {
   itable_.SerializeToString(&local_itable);
 
   Status status = Status::OK;
-  if (latest_itablehash != hasher(local_itable)) {
+  if (latest_itablehash != hasher_(local_itable)) {
     GetRequest req;
     GetResponse reply;
     ClientContext context;
@@ -167,8 +167,10 @@ Status FCKVClient::StartOp(std::vector<VersionStruct>* versions) {
   Status status = stub_->FCKVStoreStartOp(&context, req, &reply);
   if (status.ok()) {
     // update local version lists
-    for (VersionStruct v : reply.versions()) {
-      versions->push_back(v);
+    for (std::string v : reply.versions()) {
+      VersionStruct version;
+      version.ParseFromString(v);
+      versions->push_back(version);
     }
   }
   return status;

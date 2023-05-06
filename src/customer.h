@@ -30,7 +30,7 @@ private:
   KeyTable itable_;
   std::vector<VersionStruct> versions_;       // global version structs
   std::string pubkey_;                        // this is us
-  std::hash<std::string> hasher;
+  std::hash<std::string> hasher_;
   
   // acquires global lock on server
   // updates local copies of version lists as returned by the server
