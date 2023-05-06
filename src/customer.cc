@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <exception>
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
 
@@ -17,6 +18,7 @@ using fc_kv_store::StartOpRequest;
 using fc_kv_store::StartOpResponse;
 using fc_kv_store::CommitOpRequest;
 using fc_kv_store::CommitOpResponse;
+using fc_kv_store::UserVersion;
 
 std::string privateKeyFile = "private_key.pem";
 std::string publicKeyFile = "public_key.pem";
@@ -68,31 +70,53 @@ std::string FCKVClient::Get(std::string key) {
   std::vector<VersionStruct> all_versions;
   StartOp(&all_versions);
 
-  // update local version
-  // increment version number
-  VersionStruct new_version = version_;
-  new_version.set_version(version_.version() + 1);
-
-  // update version vector
-  for (auto v : all_versions) {
-    (*new_version.mutable_vlist())[hasher_(v.pubkey())] = v.version();
+  // find our version and the max version num
+  int loc = -1;
+  int maxversion = 0;
+  for (int i = 0; i < all_versions.size(); i++) {
+    if (all_versions[i].version() > maxversion) {
+      maxversion = all_versions[i].version();
+    }
+    if (all_versions[i].pubkey() == pubkey_) {
+      loc = i;
+    }
   }
-  // don't forget about ourselves
-  (*new_version.mutable_vlist())[hasher_(pubkey_)] = new_version.version();
-  all_versions.push_back(new_version);
-
-  // sign new version struct
-  if (!signVersionStruct(new_version)) {
-    std::cerr << "Failed to sign the VersionStruct content." << std::endl;
+  
+  // server doesn't have a version for us yet, so add ours to the list
+  if (loc = -1) {
+    all_versions.push_back(version_);
+    loc = all_versions.size();
   }
+  
+  // validate and increment version number 
+  if (all_versions[loc].signature() != version_.signature()) {
+    std::cout << "Bad version!" << std::endl;
+    exit(1);
+  }
+  all_versions[loc].set_version(maxversion + 1);
 
   // if there's a history conflict, we abort now
+  // from now on, our version is the last one in the all_versions list
+  // because it is sorted by version() in CheckCompatability
   if (!CheckCompatability(all_versions)) {
     std::cout << "History incompatability, aborting operation" << std::endl;
     AbortOp();
   }
+  loc = all_versions.size();
 
-  if (!UpdateItable(all_versions[0].itablehash()).ok()) {
+  // update version vector
+  for (auto v : all_versions) {
+    UserVersion* uv = all_versions[loc].add_vlist();
+    uv->set_user(hasher_(v.pubkey()));
+    uv->set_version(v.version());
+  }
+  
+  // sign new version struct
+  if (!signVersionStruct(all_versions[loc])) {
+    std::cerr << "Failed to sign the VersionStruct content." << std::endl;
+  }
+
+  if (!UpdateItable(all_versions[loc].itablehash()).ok()) {
     std::cerr << "Problem updating keytable" << std::endl;
   }
     
@@ -105,8 +129,9 @@ std::string FCKVClient::Get(std::string key) {
   ClientContext context;
   Status status = stub_->FCKVStoreGet(&context, req, &reply);
   
-  if (status.ok() && CommitOp(new_version).ok()) {
-    version_ = new_version;
+  if (status.ok() && CommitOp(all_versions[loc]).ok()) {
+    // TODO does this copy actually work?
+    version_ = all_versions[loc];
     return reply.value();
   }
   
@@ -190,6 +215,17 @@ Status FCKVClient::AbortOp() {
 }
 
 bool FCKVClient::CheckCompatability(std::vector<VersionStruct> versions) {
+  try {
+  std::sort(versions.begin(), versions.end(),
+            [](const VersionStruct& a, const VersionStruct& b) {
+              if (a.version() == b.version()) throw std::logic_error("error");
+              return a.version() < b.version();
+            });
+  }
+  catch (std::exception& e) {
+    return false;
+  }
+  
   return true;
 }
 

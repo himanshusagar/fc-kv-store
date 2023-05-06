@@ -7,7 +7,7 @@ endif()
 
 project(fc_kv_store)
 
-file(GLOB SRCS_Store server.cc store.h store.cc hash_table.h hash_table.cc)
+file(GLOB SRCS_Store server.cc server.h)
 file(GLOB SRCS_Customer customer.cc)
 
 

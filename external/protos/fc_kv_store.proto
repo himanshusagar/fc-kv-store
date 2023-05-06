@@ -6,11 +6,15 @@ package fc_kv_store;
 message KeyTable{
   map<uint64, uint64> table = 1; // map key name -> H(keyvalue)
 }
+message UserVersion{
+  uint64 user = 1; // hash(pubkey)
+  int32 version = 2; // version num
+}
 message VersionStruct{
   int32 version = 1;
   bytes pubkey = 2; // use to identify user and pass public keys to other users
   uint64 itablehash = 3;
-  map<uint64, int32> vlist = 4; // the version list
+  repeated UserVersion vlist = 4; // the version list
   bytes signature = 5; // the signature of the VersionStruct content
 }
 message OuterTableKey{
