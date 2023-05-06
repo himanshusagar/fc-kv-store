@@ -80,6 +80,11 @@ Status FCKVClient::PreOpValidate(VersionStruct* inprogress, size_t* tblhash) {
       maxversion = all_versions[i].version();
     }
     if (all_versions[i].pubkey() == pubkey_) {
+      // just abort if the signatures don't match, there is a problem here
+      if (all_versions[i].signature() != version_.signature()) {
+        std::cout << "Bad version!" << std::endl;
+        return Status(grpc::StatusCode::UNKNOWN, "signature mismatch");
+      }
       loc = i;
     }
   }
@@ -87,7 +92,7 @@ Status FCKVClient::PreOpValidate(VersionStruct* inprogress, size_t* tblhash) {
   // server doesn't have a version for us yet, so add ours to the list
   if (loc == -1) {
     all_versions.push_back(version_);
-    loc = all_versions.size();
+    loc = all_versions.size() - 1;
   }
 
   // remember the most recent itable hash
@@ -98,10 +103,6 @@ Status FCKVClient::PreOpValidate(VersionStruct* inprogress, size_t* tblhash) {
   }
   
   // validate and increment version number 
-  if (all_versions[loc].signature() != version_.signature()) {
-    std::cout << "Bad version!" << std::endl;
-    exit(1);
-  }
   all_versions[loc].set_version(maxversion + 1);
 
   // if there's a history conflict, we abort now
@@ -110,6 +111,7 @@ Status FCKVClient::PreOpValidate(VersionStruct* inprogress, size_t* tblhash) {
   if (!CheckCompatability(all_versions)) {
     std::cout << "History incompatability, aborting operation" << std::endl;
     AbortOp();
+    return Status(grpc::StatusCode::UNKNOWN, "history incompatability");
   }
   *inprogress = all_versions[all_versions.size() - 1];
 
@@ -123,6 +125,7 @@ Status FCKVClient::PreOpValidate(VersionStruct* inprogress, size_t* tblhash) {
   // sign new version struct
   if (!signVersionStruct(inprogress)) {
     std::cerr << "Failed to sign the VersionStruct content." << std::endl;
+    return Status(grpc::StatusCode::UNKNOWN, "failed to sign versionstruct");
   }
 
   return Status::OK;
@@ -133,6 +136,7 @@ std::string FCKVClient::Get(std::string key) {
   size_t tblhash;
   if (!PreOpValidate(&inprogress, &tblhash).ok()) {
     std::cerr << "Pre-operation validation failed" << std::endl;
+    exit(1);
   }
 
   if (!UpdateItable(tblhash).ok()) {
@@ -143,6 +147,7 @@ std::string FCKVClient::Get(std::string key) {
   // Do GetRequest with H(value) from key table
   GetRequest req;
   size_t hashvalue = (*itable_.mutable_table())[hasher_(key)];
+  req.set_pubkey(pubkey_);
   req.set_key(hashvalue);
   
   GetResponse reply;
@@ -176,6 +181,7 @@ int FCKVClient::Put(std::string key, std::string value) {
   PutRequest req;
   PutResponse reply;
   ClientContext context;
+  req.set_pubkey(pubkey_);
   req.set_value(value);
   Status status = stub_->FCKVStorePut(&context, req, &reply);
 
@@ -196,6 +202,7 @@ int FCKVClient::Put(std::string key, std::string value) {
   PutRequest tblreq;
   PutResponse tblreply;
   ClientContext tblcontext;
+  tblreq.set_pubkey(pubkey_);
   tblreq.set_value(serializeditable);
   status = stub_->FCKVStorePut(&tblcontext, tblreq, &tblreply);
 
@@ -232,6 +239,7 @@ Status FCKVClient::UpdateItable(size_t latest_itablehash) {
     GetResponse reply;
     ClientContext context;
 
+    req.set_pubkey(pubkey_);
     req.set_key(latest_itablehash);
     status = stub_->FCKVStoreGet(&context, req, &reply);
     // TODO validate (check hashes match)
@@ -248,9 +256,9 @@ Status FCKVClient::StartOp(std::vector<VersionStruct>* versions) {
   StartOpRequest req;
   StartOpResponse reply;
   ClientContext context;
+  req.set_pubkey(pubkey_);
   Status status = stub_->FCKVStoreStartOp(&context, req, &reply);
   if (status.ok()) {
-    // update local version lists
     for (std::string v : reply.versions()) {
       VersionStruct version;
       version.ParseFromString(v);

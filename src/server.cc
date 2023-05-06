@@ -15,54 +15,74 @@ using grpc::Status;
 
 Status FCKVStoreRPCServiceImpl::FCKVStoreStartOp(
   ServerContext* context, const StartOpRequest* req, StartOpResponse* res) {
-  // TODO lock for this user
-  for (auto& [pubkey, vs] : vsl_) {
-    res->add_versions(vs);
+  if (lock_.empty()) {
+    lock_ = req->pubkey();
+  
+    for (auto& [pubkey, vs] : vsl_) {
+      res->add_versions(vs);
+    }
+    return Status::OK;
+  } else {
+    return Status(grpc::StatusCode::UNAVAILABLE, "");
   }
-  return Status::OK;
 }
   
 Status FCKVStoreRPCServiceImpl::FCKVStoreCommitOp(
   ServerContext* context, const CommitOpRequest* req, CommitOpResponse* res) {
-  // TODO unlock
-  std::string version;
-  req->v().SerializeToString(&version);
-  vsl_[hasher_(req->pubkey())] = version;
-  return Status::OK;
+  if (lock_ == req->pubkey()) {
+    std::string version;
+    req->v().SerializeToString(&version);
+    vsl_[hasher_(req->pubkey())] = version;
+    return Status::OK;
+  } else {
+    return Status(grpc::StatusCode::UNAVAILABLE, "");
+  }
 }
 
 Status FCKVStoreRPCServiceImpl::FCKVStoreAbortOp(
   ServerContext* context, const AbortOpRequest* req, AbortOpResponse* res) {
-  // TODO unlock
-  return Status::OK;
+  if (lock_ == req->pubkey()) {
+    lock_.clear();
+    return Status::OK;
+  } else {
+    return Status(grpc::StatusCode::UNAVAILABLE, "");
+  }
 }
     
 Status FCKVStoreRPCServiceImpl::FCKVStoreGet(
   ServerContext* context, const GetRequest* request, GetResponse* reply) {
-  leveldb::Status status;
-  std::string value;
-  std::string key = std::to_string(request->key());
-  status = store_->Get(leveldb::ReadOptions(), key.c_str(), &value);
-  if (status.ok()) {
-    reply->set_value(value);
-    return Status::OK;
+  if (lock_ == request->pubkey()) {
+    leveldb::Status status;
+    std::string value;
+    std::string key = std::to_string(request->key());
+    status = store_->Get(leveldb::ReadOptions(), key.c_str(), &value);
+    if (status.ok()) {
+      reply->set_value(value);
+      return Status::OK;
+    }
+    std::cout << "Server Get error with key " << key << std::endl;
+    return Status(grpc::StatusCode::NOT_FOUND, "");
+  } else {
+    return Status(grpc::StatusCode::UNAVAILABLE, "");
   }
-  std::cout << "Server Get error with key " << key << std::endl;
-  return Status(grpc::StatusCode::NOT_FOUND, "");
 }
 
 Status FCKVStoreRPCServiceImpl::FCKVStorePut(
   ServerContext* context, const PutRequest* request, PutResponse* reply) {
-  leveldb::Status status;
-  std::string val = request->value();
-  size_t hashval = hasher_(val);
-  status = store_->Put(leveldb::WriteOptions(), std::to_string(hashval), val);
-  if (status.ok()) {
-    reply->set_hash(hashval);
-    return Status::OK;
+  if (lock_ == request->pubkey()) {
+    leveldb::Status status;
+    std::string val = request->value();
+    size_t hashval = hasher_(val);
+    status = store_->Put(leveldb::WriteOptions(), std::to_string(hashval), val);
+    if (status.ok()) {
+      reply->set_hash(hashval);
+      return Status::OK;
+    }
+    std::cout << "Server Put error with key " << hashval << std::endl;
+    return Status(grpc::StatusCode::UNKNOWN, "");
+  } else {
+    return Status(grpc::StatusCode::UNAVAILABLE, "");
   }
-  std::cout << "Server Put error with key " << hashval << std::endl;
-  return Status(grpc::StatusCode::UNKNOWN, "");
 }
 
 void sigintHandler(int sig_num)
