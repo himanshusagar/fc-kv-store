@@ -25,10 +25,10 @@ using fc_kv_store::UserVersion;
 std::string privateKeyFile = "private_key.pem";
 std::string publicKeyFile = "public_key.pem";
 
-bool signVersionStruct(VersionStruct& versionStruct) {
+bool signVersionStruct(VersionStruct* versionStruct) {
     // Serialize the VersionStruct without the signature field
-    versionStruct.clear_signature();
-    std::string serializedData = versionStruct.SerializeAsString();
+    versionStruct->clear_signature();
+    std::string serializedData = versionStruct->SerializeAsString();
 
     // Load the private key from the file
     FILE* privateKeyFilePtr = fopen(privateKeyFile.c_str(), "rb");
@@ -63,18 +63,18 @@ bool signVersionStruct(VersionStruct& versionStruct) {
     }
 
     // Set the signature field in the VersionStruct
-    versionStruct.set_signature(signature.data(), signature.size());
+    versionStruct->set_signature(signature.data(), signature.size());
 
     return true;
 }
 
-std::string FCKVClient::Get(std::string key) {
+Status FCKVClient::PreOpValidate(VersionStruct* inprogress, size_t* tblhash) {
   std::vector<VersionStruct> all_versions;
   StartOp(&all_versions);
 
   // find our version and the max version num
   int loc = -1;
-  int maxversion = 0;
+  int maxversion = -1;
   for (int i = 0; i < all_versions.size(); i++) {
     if (all_versions[i].version() > maxversion) {
       maxversion = all_versions[i].version();
@@ -85,9 +85,16 @@ std::string FCKVClient::Get(std::string key) {
   }
   
   // server doesn't have a version for us yet, so add ours to the list
-  if (loc = -1) {
+  if (loc == -1) {
     all_versions.push_back(version_);
     loc = all_versions.size();
+  }
+
+  // remember the most recent itable hash
+  if (maxversion != -1) {
+    *tblhash = all_versions[maxversion].itablehash();
+  } else {
+    *tblhash = 0;
   }
   
   // validate and increment version number 
@@ -104,23 +111,34 @@ std::string FCKVClient::Get(std::string key) {
     std::cout << "History incompatability, aborting operation" << std::endl;
     AbortOp();
   }
-  loc = all_versions.size();
+  *inprogress = all_versions[all_versions.size() - 1];
 
   // update version vector
   for (auto v : all_versions) {
-    UserVersion* uv = all_versions[loc].add_vlist();
+    UserVersion* uv = inprogress->add_vlist();
     uv->set_user(hasher_(v.pubkey()));
     uv->set_version(v.version());
   }
   
   // sign new version struct
-  if (!signVersionStruct(all_versions[loc])) {
+  if (!signVersionStruct(inprogress)) {
     std::cerr << "Failed to sign the VersionStruct content." << std::endl;
   }
 
-  if (!UpdateItable(all_versions[loc].itablehash()).ok()) {
+  return Status::OK;
+}
+
+std::string FCKVClient::Get(std::string key) {
+  VersionStruct inprogress;
+  size_t tblhash;
+  if (!PreOpValidate(&inprogress, &tblhash).ok()) {
+    std::cerr << "Pre-operation validation failed" << std::endl;
+  }
+
+  if (!UpdateItable(tblhash).ok()) {
     std::cerr << "Problem updating keytable" << std::endl;
   }
+  inprogress.set_itablehash(tblhash);
     
   // Do GetRequest with H(value) from key table
   GetRequest req;
@@ -131,9 +149,9 @@ std::string FCKVClient::Get(std::string key) {
   ClientContext context;
   Status status = stub_->FCKVStoreGet(&context, req, &reply);
   
-  if (status.ok() && CommitOp(all_versions[loc]).ok()) {
+  if (status.ok() && CommitOp(inprogress).ok()) {
     // TODO does this copy actually work?
-    version_ = all_versions[loc];
+    version_ = inprogress;
     return reply.value();
   }
   
@@ -143,25 +161,64 @@ std::string FCKVClient::Get(std::string key) {
 }
 
 int FCKVClient::Put(std::string key, std::string value) {
-//   PutRequest req;
-//   req.set_key(key);
-//   req.set_value(value);
-    
-//   PutResponse reply;
-//   ClientContext context;
-//   Status status = stub_->FCKVStorePut(&context, req, &reply);
+  VersionStruct inprogress;
+  size_t tblhash;
+  if (!PreOpValidate(&inprogress, &tblhash).ok()) {
+    std::cerr << "Pre-operation validation failed" << std::endl;
+  }
 
-//   if (status.ok())
-//   {
-//     return reply.status();
-//   }
-//   else
-//   {
-//     std::cout << status.error_code() << ": " << status.error_message()
-//               << std::endl;
-//     return -1;
-//   }
-  return 0;
+  if (!UpdateItable(tblhash).ok()) {
+    std::cerr << "Problem updating keytable" << std::endl;
+  }
+  inprogress.set_itablehash(tblhash);
+    
+  // Do PutRequest
+  PutRequest req;
+  PutResponse reply;
+  ClientContext context;
+  req.set_value(value);
+  Status status = stub_->FCKVStorePut(&context, req, &reply);
+
+  size_t hashvalue = hasher_(value);
+  size_t serverhash = reply.hash();
+
+  if (hashvalue != serverhash) {
+    std::cout << "Server hashed our value differently than we did. Error!"
+              << std::endl;
+    return -1;
+  }
+
+  // update key table
+  (*itable_.mutable_table())[hasher_(key)] = hashvalue;
+  std::string serializeditable;
+  itable_.SerializeToString(&serializeditable);
+  
+  PutRequest tblreq;
+  PutResponse tblreply;
+  ClientContext tblcontext;
+  tblreq.set_value(serializeditable);
+  status = stub_->FCKVStorePut(&tblcontext, tblreq, &tblreply);
+
+  hashvalue = hasher_(serializeditable);
+  serverhash = reply.hash();
+
+  if (hashvalue != serverhash) {
+    std::cout << "Server hashed our itable differently than we did. Error!"
+              << std::endl;
+    return -1;
+  }
+
+  inprogress.set_itablehash(hashvalue);
+  
+  if (status.ok() && CommitOp(inprogress).ok()) {
+    // TODO does this copy actually work?
+    version_ = inprogress;
+    return 0;
+  }
+  
+  std::cout << status.error_code() << ": " << status.error_message()
+            << std::endl;
+  return -1;
 }
 
 // fetch key table from most recent version if it is different than ours

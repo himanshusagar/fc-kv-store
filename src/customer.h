@@ -31,6 +31,11 @@ private:
   std::vector<VersionStruct> versions_;       // global version structs
   std::string pubkey_;                        // this is us
   std::hash<std::string> hasher_;
+
+  // Call PreOpValidate before any call to Get or Put
+  // This function start the operation with the server and checks for
+  // invalid or conflicting information from the server.
+  Status PreOpValidate(VersionStruct* inprogress, size_t* tblhash);
   
   // acquires global lock on server
   // updates local copies of version lists as returned by the server
