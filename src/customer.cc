@@ -18,6 +18,8 @@ using fc_kv_store::StartOpRequest;
 using fc_kv_store::StartOpResponse;
 using fc_kv_store::CommitOpRequest;
 using fc_kv_store::CommitOpResponse;
+using fc_kv_store::AbortOpRequest;
+using fc_kv_store::AbortOpResponse;
 using fc_kv_store::UserVersion;
 
 std::string privateKeyFile = "private_key.pem";
@@ -207,11 +209,19 @@ Status FCKVClient::CommitOp(VersionStruct version) {
   ClientContext context;
 
   req.set_allocated_v(&version);
+  req.set_pubkey(pubkey_);
   return stub_->FCKVStoreCommitOp(&context, req, &reply);
 }
 
+// use pubkey to abort an operation and unlock the server
+// this is not a secure solution
 Status FCKVClient::AbortOp() {
-  // return Status::ok();
+  AbortOpRequest req;
+  AbortOpResponse reply;
+  ClientContext context;
+
+  req.set_pubkey(pubkey_);
+  return stub_->FCKVStoreAbortOp(&context, req, &reply);
 }
 
 bool FCKVClient::CheckCompatability(std::vector<VersionStruct> versions) {

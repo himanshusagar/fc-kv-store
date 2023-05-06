@@ -54,6 +54,7 @@ message CommitOpRequest{
   VersionStruct v = 2;
 }
 message AbortOpRequest{
+  string pubkey = 1;
 }
 message StartOpResponse{
   repeated string versions = 1;
