@@ -17,7 +17,10 @@
 14. sudo apt-get install libgtest-dev
 
 # Run Tests
-1. cd build
-2. make
-3. cd test
-4. ./customer_test
+1. cd fc-kv-store/build && cmake ../ && make
+3. Start server by running these commands:
+    cd fc-kv-store/build/bin
+    ./simple_kv_store
+4. Run tests:
+    cd fc-kv-store/build/test
+    ./customer_test
