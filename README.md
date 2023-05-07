@@ -14,3 +14,10 @@
 11. cd bin
 12. ./simple_kv_store
 13. sudo apt-get install libssl-dev
+14. sudo apt-get install libgtest-dev
+
+# Run Tests
+1. cd build
+2. make
+3. cd test
+4. ./customer_test
