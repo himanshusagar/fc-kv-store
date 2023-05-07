@@ -33,6 +33,7 @@ Status FCKVStoreRPCServiceImpl::FCKVStoreCommitOp(
     std::string version;
     req->v().SerializeToString(&version);
     vsl_[hasher_(req->pubkey())] = version;
+    lock_.clear();
     return Status::OK;
   } else {
     return Status(grpc::StatusCode::UNAVAILABLE, "");
