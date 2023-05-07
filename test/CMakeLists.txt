@@ -17,6 +17,7 @@ target_link_libraries(customer_test
         gRPC::grpc++
         p3protolib
         leveldb::leveldb
+        customer_lib
 )
 
 gtest_discover_tests(customer_test)

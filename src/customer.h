@@ -56,3 +56,8 @@ private:
   // fetch key table from most recent version if it is different than ours
   Status UpdateItable(size_t tablehash);
 };
+
+void sigintHandler(int sig_num);
+bool generateRSAKeyPair();
+extern std::string privateKeyFile;
+extern std::string publicKeyFile;
