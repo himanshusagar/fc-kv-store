@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <vector>
 #include <string>
+#include <filesystem>
 
 using grpc::Channel;
 using grpc::ClientContext;
@@ -21,7 +22,17 @@ public:
     : stub_(FCKVStoreRPC::NewStub(channel)),
       pubkey_(pubkey),
       privateKeyFile_(privateKeyFile),
-      publicKeyFile_(publicKeyFile) {}
+      publicKeyFile_(publicKeyFile) {
+        if (std::filesystem::exists(privateKeyFile) || std::filesystem::exists(publicKeyFile)) {
+            std::cout << "Log: Private or public key file already exists. Overwriting the files." << std::endl;
+        }
+
+        if (generateRSAKeyPair(privateKeyFile, publicKeyFile)) {
+            std::cout << "Log: RSA key pair generated successfully." << std::endl;
+        } else {
+            throw std::runtime_error("Failed to generate RSA key pair.");
+        }
+      }
   
   std::string Get(std::string key);
   int Put(std::string key, std::string value);
@@ -58,11 +69,10 @@ private:
   // history conflict
   bool CheckCompatability(std::vector<VersionStruct> versions);
 
+  bool generateRSAKeyPair(std::string privateKeyFile, std::string publicKeyFile);
+
   // fetch key table from most recent version if it is different than ours
   Status UpdateItable(size_t tablehash);
 };
 
 void sigintHandler(int sig_num);
-bool generateRSAKeyPair(std::string privateKeyFile, std::string publicKeyFile);
-extern std::string privateKeyFile;
-extern std::string publicKeyFile;

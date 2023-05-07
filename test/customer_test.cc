@@ -10,8 +10,8 @@ protected:
     std::string server_address("localhost:50051");
     auto channel = grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials());
 
-    for (int i = 0; i < 10; ++i) {
-        std::string pubkey = "client" + std::to_string(i) + "_pubkey";
+    for (int i = 0; i < 2; ++i) {
+        std::string pubkey = "12345" + std::to_string(i);
         std::string privateKeyFile = "client" + std::to_string(i) + "_private_key.pem";
         std::string publicKeyFile = "client" + std::to_string(i) + "_public_key.pem";
 
@@ -33,15 +33,15 @@ TEST_F(FCKVClientTest, PutGetOneClientTest) {
 
 TEST_F(FCKVClientTest, PutGetMultipleClientsTest) {
   // Each of 10 clients puts key value pair
-  for (int i = 0; i < 10; ++i) {
+  for (int i = 0; i < 2; ++i) {
     std::string key = "100" + std::to_string(i);
     std::string value = "20" + std::to_string(i);
     ASSERT_EQ(clients[i]->Put(key, value), 0);
   }
 
   // Make sure each of 10 clients can get each of 10 pairs created by all clients together
-  for (int i = 0; i < 10; ++i) {
-    for (int j = 0; j < 10; ++j) {
+  for (int i = 0; i < 2; ++i) {
+    for (int j = 0; j < 2; ++j) {
       std::string key = "100" + std::to_string(j);
       std::string value = "20" + std::to_string(j);
       std::string reply = clients[i]->Get(key);

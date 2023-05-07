@@ -162,10 +162,14 @@ std::string FCKVClient::Get(std::string key) {
   
   if (status.ok() && CommitOp(inprogress).ok()) {
     // TODO does this copy actually work?
+    std::cout << "Log: Successfully completed get"
+              << std::endl;
     version_ = inprogress;
     return reply.value();
   }
   
+  std::cout << "Log: Failed to complete get"
+              << std::endl;
   std::cout << status.error_code() << ": " << status.error_message()
             << std::endl;
   return nullptr;
@@ -190,6 +194,10 @@ int FCKVClient::Put(std::string key, std::string value) {
   req.set_pubkey(pubkey_);
   req.set_value(value);
   Status status = stub_->FCKVStorePut(&context, req, &reply);
+  
+  if (!status.ok()) {
+    std::cout << "Error on line 196: " << status.error_code() << ": " << status.error_message() << std::endl;
+  }
 
   size_t hashvalue = hasher_(value);
   size_t serverhash = reply.hash();
@@ -212,6 +220,10 @@ int FCKVClient::Put(std::string key, std::string value) {
   tblreq.set_value(serializeditable);
   status = stub_->FCKVStorePut(&tblcontext, tblreq, &tblreply);
 
+  if (!status.ok()) {
+    std::cout << "Error on line 221: " << status.error_code() << ": " << status.error_message() << std::endl;
+  }
+
   hashvalue = hasher_(serializeditable);
   serverhash = tblreply.hash();
 
@@ -226,9 +238,13 @@ int FCKVClient::Put(std::string key, std::string value) {
   if (status.ok() && CommitOp(inprogress).ok()) {
     // TODO does this copy actually work?
     version_ = inprogress;
+    std::cout << "Log: Successfully completed put"
+              << std::endl;
     return 0;
   }
   
+  std::cout << "Log: Failed to complete put"
+              << std::endl;
   std::cout << status.error_code() << ": " << status.error_message()
             << std::endl;
   return -1;
@@ -325,7 +341,7 @@ void sigintHandler(int sig_num)
   std::exit(0);
 }
 
-bool generateRSAKeyPair(std::string privateKeyFile, std::string publicKeyFile) {
+bool FCKVClient::generateRSAKeyPair(std::string privateKeyFile, std::string publicKeyFile) {
     int keyLength = 2048;
     int exp = RSA_F4; // Standard RSA exponent: 65537
 
