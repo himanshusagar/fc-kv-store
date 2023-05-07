@@ -22,10 +22,10 @@ using fc_kv_store::AbortOpRequest;
 using fc_kv_store::AbortOpResponse;
 using fc_kv_store::UserVersion;
 
-std::string privateKeyFile = "private_key.pem";
-std::string publicKeyFile = "public_key.pem";
+// std::string privateKeyFile = "private_key.pem";
+// std::string publicKeyFile = "public_key.pem";
 
-bool signVersionStruct(VersionStruct* versionStruct) {
+bool signVersionStruct(VersionStruct* versionStruct, std::string privateKeyFile) {
     // Serialize the VersionStruct without the signature field
     versionStruct->clear_signature();
     std::string serializedData = versionStruct->SerializeAsString();
@@ -129,7 +129,7 @@ Status FCKVClient::PreOpValidate(VersionStruct* inprogress, size_t* tblhash) {
   }
   
   // sign new version struct
-  if (!signVersionStruct(inprogress)) {
+  if (!signVersionStruct(inprogress, privateKeyFile_)) {
     std::cerr << "Failed to sign the VersionStruct content." << std::endl;
     return Status(grpc::StatusCode::UNKNOWN, "failed to sign versionstruct");
   }
@@ -325,7 +325,7 @@ void sigintHandler(int sig_num)
   std::exit(0);
 }
 
-bool generateRSAKeyPair() {
+bool generateRSAKeyPair(std::string privateKeyFile, std::string publicKeyFile) {
     int keyLength = 2048;
     int exp = RSA_F4; // Standard RSA exponent: 65537
 

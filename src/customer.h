@@ -17,9 +17,11 @@ using fc_kv_store::KeyTable;
 class FCKVClient
 {
 public:
-  FCKVClient(std::shared_ptr<Channel> channel, std::string pubkey)
+  FCKVClient(std::shared_ptr<Channel> channel, std::string pubkey, const std::string& privateKeyFile, const std::string& publicKeyFile)
     : stub_(FCKVStoreRPC::NewStub(channel)),
-      pubkey_(pubkey) {}
+      pubkey_(pubkey),
+      privateKeyFile_(privateKeyFile),
+      publicKeyFile_(publicKeyFile) {}
   
   std::string Get(std::string key);
   int Put(std::string key, std::string value);
@@ -31,6 +33,9 @@ private:
   std::vector<VersionStruct> versions_;       // global version structs
   std::string pubkey_;                        // this is us
   std::hash<std::string> hasher_;
+
+  std::string privateKeyFile_;
+  std::string publicKeyFile_;
 
   // Call PreOpValidate before any call to Get or Put
   // This function start the operation with the server and checks for
@@ -58,6 +63,6 @@ private:
 };
 
 void sigintHandler(int sig_num);
-bool generateRSAKeyPair();
+bool generateRSAKeyPair(std::string privateKeyFile, std::string publicKeyFile);
 extern std::string privateKeyFile;
 extern std::string publicKeyFile;
