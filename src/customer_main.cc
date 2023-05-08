@@ -23,7 +23,7 @@ int main()
   std::string placedValue = "20";
   rpcClient.Put("100" , placedValue);
   auto reply = rpcClient.Get("100");
-  std::cout << "BasicRPC Int received: " << reply << " " << placedValue << std::endl;
+  std::cout << "BasicRPC Int received: " << reply.second + " " + placedValue << std::endl;
 
   return 0;
 }
