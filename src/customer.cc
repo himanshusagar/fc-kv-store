@@ -147,7 +147,7 @@ std::pair<int, std::string> FCKVClient::Get(std::string key) {
 
   grpc::Status update_status = UpdateItable(tblhash);
   if (!update_status.ok()) {
-    std::cout << "Problem updating keytable - UpdateItable error: " << update_status.error_code() << ": " << update_status.error_message() << std::endl;
+    std::cout << "Problem updating keytable in get - UpdateItable error: " << update_status.error_code() << ": " << update_status.error_message() << std::endl;
     return std::make_pair(-1, "Error occurred");
   }
   inprogress.set_itablehash(tblhash);
@@ -182,10 +182,13 @@ int FCKVClient::Put(std::string key, std::string value) {
   size_t tblhash;
   if (!PreOpValidate(&inprogress, &tblhash).ok()) {
     std::cerr << "Pre-operation validation failed" << std::endl;
+    return -1;
   }
 
-  if (!UpdateItable(tblhash).ok()) {
-    std::cerr << "Problem updating keytable" << std::endl;
+  grpc::Status update_status = UpdateItable(tblhash);
+  if (!update_status.ok()) {
+    std::cout << "Problem updating keytable in put - UpdateItable error: " << update_status.error_code() << ": " << update_status.error_message() << std::endl;
+    return -1;
   }
   inprogress.set_itablehash(tblhash);
     

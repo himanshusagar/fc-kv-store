@@ -24,11 +24,11 @@ public:
       privateKeyFile_(privateKeyFile),
       publicKeyFile_(publicKeyFile) {
         if (std::filesystem::exists(privateKeyFile) || std::filesystem::exists(publicKeyFile)) {
-            std::cout << "Log: Private or public key file already exists. Overwriting the files." << std::endl;
+            // std::cout << "Log: Private or public key file already exists. Overwriting the files." << std::endl;
         }
 
         if (generateRSAKeyPair(privateKeyFile, publicKeyFile)) {
-            std::cout << "Log: RSA key pair generated successfully." << std::endl;
+            // std::cout << "Log: RSA key pair generated successfully." << std::endl;
         } else {
             throw std::runtime_error("Failed to generate RSA key pair.");
         }
