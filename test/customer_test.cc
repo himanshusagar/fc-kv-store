@@ -27,8 +27,9 @@ TEST_F(FCKVClientTest, PutGetOneClientTest) {
   std::string value = "20";
   ASSERT_EQ(clients[0]->Put(key, value), 0);
 
-  std::string reply = clients[0]->Get(key);
-  ASSERT_EQ(reply, value);
+  std::pair<int, std::string> reply = clients[0]->Get(key);
+  ASSERT_EQ(reply.first, 0);
+  ASSERT_EQ(reply.second, value);
 }
 
 TEST_F(FCKVClientTest, PutGetMultipleClientsTest) {
@@ -44,8 +45,9 @@ TEST_F(FCKVClientTest, PutGetMultipleClientsTest) {
     for (int j = 0; j < 2; ++j) {
       std::string key = "100" + std::to_string(j);
       std::string value = "20" + std::to_string(j);
-      std::string reply = clients[i]->Get(key);
-      ASSERT_EQ(reply, value);
+      std::pair<int, std::string> reply = clients[i]->Get(key);
+      ASSERT_EQ(reply.first, 0);
+      ASSERT_EQ(reply.second, value);
     }
   }
 }

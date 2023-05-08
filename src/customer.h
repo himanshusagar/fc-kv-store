@@ -34,7 +34,7 @@ public:
         }
       }
   
-  std::string Get(std::string key);
+  std::pair<int, std::string> Get(std::string key);
   int Put(std::string key, std::string value);
   
 private:

@@ -137,16 +137,18 @@ Status FCKVClient::PreOpValidate(VersionStruct* inprogress, size_t* tblhash) {
   return Status::OK;
 }
 
-std::string FCKVClient::Get(std::string key) {
+std::pair<int, std::string> FCKVClient::Get(std::string key) {
   VersionStruct inprogress;
   size_t tblhash;
   if (!PreOpValidate(&inprogress, &tblhash).ok()) {
     std::cerr << "Pre-operation validation failed" << std::endl;
-    exit(1);
+    return std::make_pair(-1, "Error occurred");
   }
 
-  if (!UpdateItable(tblhash).ok()) {
-    std::cerr << "Problem updating keytable" << std::endl;
+  grpc::Status update_status = UpdateItable(tblhash);
+  if (!update_status.ok()) {
+    std::cout << "Problem updating keytable - UpdateItable error: " << update_status.error_code() << ": " << update_status.error_message() << std::endl;
+    return std::make_pair(-1, "Error occurred");
   }
   inprogress.set_itablehash(tblhash);
     
@@ -165,14 +167,14 @@ std::string FCKVClient::Get(std::string key) {
     std::cout << "Log: Successfully completed get"
               << std::endl;
     version_ = inprogress;
-    return reply.value();
+    return std::make_pair(0, reply.value());
   }
   
   std::cout << "Log: Failed to complete get"
               << std::endl;
   std::cout << status.error_code() << ": " << status.error_message()
             << std::endl;
-  return nullptr;
+  return std::make_pair(-1, "Error occurred");
 }
 
 int FCKVClient::Put(std::string key, std::string value) {

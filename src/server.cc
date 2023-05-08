@@ -58,9 +58,11 @@ Status FCKVStoreRPCServiceImpl::FCKVStoreGet(
     std::string key = std::to_string(request->key());
     status = store_->Get(leveldb::ReadOptions(), key.c_str(), &value);
     if (status.ok()) {
+      std::cout << "Store Get OK" << std::endl;
       reply->set_value(value);
       return Status::OK;
     }
+    std::cout << "LevelDB error: " << status.ToString() << std::endl;
     std::cout << "Server Get error with key " << key << std::endl;
     return Status(grpc::StatusCode::NOT_FOUND, "");
   } else {
