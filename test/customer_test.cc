@@ -32,6 +32,29 @@ TEST_F(FCKVClientTest, PutGetOneClientTest) {
   ASSERT_EQ(reply.second, value);
 }
 
+TEST_F(FCKVClientTest, SeveralPutGetOneClientTest) {
+  std::string k1 = "key1";
+  std::string v1 = "value1";
+  std::string k2 = "key2";
+  std::string v2 = "value2";
+  std::string k3 = "key3";
+  std::string v3 = "value3";
+
+  ASSERT_EQ(clients[0]->Put(k1, v1), 0);
+  ASSERT_EQ(clients[0]->Put(k2, v2), 0);
+  ASSERT_EQ(clients[0]->Put(k3, v3), 0);
+
+  std::pair<int, std::string> reply = clients[0]->Get(k1);
+  ASSERT_EQ(reply.first, 0);
+  ASSERT_EQ(reply.second, v1);
+  reply = clients[0]->Get(k2);
+  ASSERT_EQ(reply.first, 0);
+  ASSERT_EQ(reply.second, v2);
+  reply = clients[0]->Get(k3);
+  ASSERT_EQ(reply.first, 0);
+  ASSERT_EQ(reply.second, v3);
+}
+
 TEST_F(FCKVClientTest, PutGetMultipleClientsTest) {
   // Each of 10 clients puts key value pair
   for (int i = 0; i < 2; ++i) {

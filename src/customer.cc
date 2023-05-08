@@ -73,18 +73,22 @@ Status FCKVClient::PreOpValidate(VersionStruct* inprogress, size_t* tblhash) {
   StartOp(&all_versions);
 
   if (all_versions.size() == 0) {
-    *inprogress = version_;
+    std::cout << "all versions was 0 sized" << std::endl;
+    inprogress->CopyFrom(version_);
     *tblhash = 0;
     return Status::OK;
   }
 
   // find our version and the max version num
-  int loc = -1;
-  int maxversion = -1;
-  for (int i = 0; i < all_versions.size(); i++) {
-    if (all_versions[i].version() > maxversion) {
-      maxversion = all_versions[i].version();
+  int maxversionloc = 0;
+  for (int i = 1; i < all_versions.size(); i++) {
+    if (all_versions[i].version() > all_versions[maxversionloc].version()) {
+      maxversionloc = i;
     }
+  }
+  
+  int loc = -1;
+  for (int i = 0; i < all_versions.size(); i++) {
     if (all_versions[i].pubkey() == pubkey_) {
       // just abort if the signatures don't match, there is a problem here
       if (all_versions[i].signature() != version_.signature()) {
@@ -102,13 +106,10 @@ Status FCKVClient::PreOpValidate(VersionStruct* inprogress, size_t* tblhash) {
   }
 
   // remember the most recent itable hash
-  if (maxversion != -1) {
-    *tblhash = all_versions[maxversion].itablehash();
-  } else {
-    *tblhash = 0;
-  }
+  *tblhash = all_versions[maxversionloc].itablehash();
+  int maxversion = all_versions[maxversionloc].version();
   
-  // validate and increment version number 
+  // validate and increment version number
   all_versions[loc].set_version(maxversion + 1);
 
   // if there's a history conflict, we abort now
@@ -166,7 +167,7 @@ std::pair<int, std::string> FCKVClient::Get(std::string key) {
     // TODO does this copy actually work?
     std::cout << "Log: Successfully completed get"
               << std::endl;
-    version_ = inprogress;
+    version_.CopyFrom(inprogress);
     return std::make_pair(0, reply.value());
   }
   
@@ -184,7 +185,6 @@ int FCKVClient::Put(std::string key, std::string value) {
     std::cerr << "Pre-operation validation failed" << std::endl;
     return -1;
   }
-
   grpc::Status update_status = UpdateItable(tblhash);
   if (!update_status.ok()) {
     std::cout << "Problem updating keytable in put - UpdateItable error: " << update_status.error_code() << ": " << update_status.error_message() << std::endl;
@@ -305,7 +305,7 @@ Status FCKVClient::CommitOp(VersionStruct version) {
   ClientContext context;
 
   VersionStruct* msgversion = req.mutable_v();
-  *msgversion = version;
+  msgversion->CopyFrom(version);
   req.set_pubkey(pubkey_);
   return stub_->FCKVStoreCommitOp(&context, req, &reply);
 }
