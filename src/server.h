@@ -3,6 +3,8 @@
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/grpcpp.h>
 #include <leveldb/db.h>
+#include <atomic>
+#include <thread>
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -29,7 +31,8 @@ using fc_kv_store::VersionStruct;
 class FCKVStoreRPCServiceImpl final : public FCKVStoreRPC::Service
 {
 public:
-  FCKVStoreRPCServiceImpl() {
+  FCKVStoreRPCServiceImpl()
+    : lock_(0) {
     leveldb::Options options;
     options.create_if_missing = true;
     std::string dbPath = "/tmp/kv_store";
@@ -58,5 +61,5 @@ private:
   leveldb::DB* store_;
   std::map<size_t, std::string> vsl_; // hash(pubkey) -> VersionStruct as str
   std::hash<std::string> hasher_;
-  std::string lock_;
+  std::atomic<size_t> lock_;
 };

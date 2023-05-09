@@ -156,7 +156,7 @@ std::pair<int, std::string> FCKVClient::Get(std::string key) {
   // Do GetRequest with H(value) from key table
   GetRequest req;
   size_t hashvalue = (*itable_.mutable_table())[hasher_(key)];
-  req.set_pubkey(pubkey_);
+  req.set_pubkey(hasher_(pubkey_));
   req.set_key(hashvalue);
   
   GetResponse reply;
@@ -196,7 +196,7 @@ int FCKVClient::Put(std::string key, std::string value) {
   PutRequest req;
   PutResponse reply;
   ClientContext context;
-  req.set_pubkey(pubkey_);
+  req.set_pubkey(hasher_(pubkey_));
   req.set_value(value);
   Status status = stub_->FCKVStorePut(&context, req, &reply);
   
@@ -221,7 +221,7 @@ int FCKVClient::Put(std::string key, std::string value) {
   PutRequest tblreq;
   PutResponse tblreply;
   ClientContext tblcontext;
-  tblreq.set_pubkey(pubkey_);
+  tblreq.set_pubkey(hasher_(pubkey_));
   tblreq.set_value(serializeditable);
   status = stub_->FCKVStorePut(&tblcontext, tblreq, &tblreply);
 
@@ -270,7 +270,7 @@ Status FCKVClient::UpdateItable(size_t latest_itablehash) {
     GetResponse reply;
     ClientContext context;
 
-    req.set_pubkey(pubkey_);
+    req.set_pubkey(hasher_(pubkey_));
     req.set_key(latest_itablehash);
     status = stub_->FCKVStoreGet(&context, req, &reply);
     // TODO validate (check hashes match)
@@ -287,7 +287,7 @@ Status FCKVClient::StartOp(std::vector<VersionStruct>* versions) {
   StartOpRequest req;
   StartOpResponse reply;
   ClientContext context;
-  req.set_pubkey(pubkey_);
+  req.set_pubkey(hasher_(pubkey_));
   Status status = stub_->FCKVStoreStartOp(&context, req, &reply);
   if (status.ok()) {
     for (std::string v : reply.versions()) {
@@ -306,7 +306,7 @@ Status FCKVClient::CommitOp(VersionStruct version) {
 
   VersionStruct* msgversion = req.mutable_v();
   msgversion->CopyFrom(version);
-  req.set_pubkey(pubkey_);
+  req.set_pubkey(hasher_(pubkey_));
   return stub_->FCKVStoreCommitOp(&context, req, &reply);
 }
 
@@ -317,7 +317,7 @@ Status FCKVClient::AbortOp() {
   AbortOpResponse reply;
   ClientContext context;
 
-  req.set_pubkey(pubkey_);
+  req.set_pubkey(hasher_(pubkey_));
   return stub_->FCKVStoreAbortOp(&context, req, &reply);
 }
 

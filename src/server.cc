@@ -15,7 +15,7 @@ using grpc::Status;
 
 Status FCKVStoreRPCServiceImpl::FCKVStoreStartOp(
   ServerContext* context, const StartOpRequest* req, StartOpResponse* res) {
-  if (lock_.empty()) {
+  if (lock_ == 0) {
     lock_ = req->pubkey();
   
     for (auto& [pubkey, vs] : vsl_) {
@@ -32,8 +32,8 @@ Status FCKVStoreRPCServiceImpl::FCKVStoreCommitOp(
   if (lock_ == req->pubkey()) {
     std::string version;
     req->v().SerializeToString(&version);
-    vsl_[hasher_(req->pubkey())] = version;
-    lock_.clear();
+    vsl_[req->pubkey()] = version;
+    lock_ = 0;
     return Status::OK;
   } else {
     return Status(grpc::StatusCode::UNAVAILABLE, "");
@@ -43,7 +43,7 @@ Status FCKVStoreRPCServiceImpl::FCKVStoreCommitOp(
 Status FCKVStoreRPCServiceImpl::FCKVStoreAbortOp(
   ServerContext* context, const AbortOpRequest* req, AbortOpResponse* res) {
   if (lock_ == req->pubkey()) {
-    lock_.clear();
+    lock_ = 0;
     return Status::OK;
   } else {
     return Status(grpc::StatusCode::UNAVAILABLE, "");
@@ -73,6 +73,7 @@ Status FCKVStoreRPCServiceImpl::FCKVStoreGet(
 Status FCKVStoreRPCServiceImpl::FCKVStorePut(
   ServerContext* context, const PutRequest* request, PutResponse* reply) {
   if (lock_ == request->pubkey()) {
+    std::cout << "Server in put method" << std::endl;
     leveldb::Status status;
     std::string val = request->value();
     size_t hashval = hasher_(val);

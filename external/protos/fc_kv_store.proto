@@ -35,7 +35,7 @@ message InnerTableValue{
 
 ////////////////// RPC begin ////////////////
 message GetRequest{
-  string pubkey = 1;
+  uint64 pubkey = 1;
   uint64 key = 2; // clients always Get by hash value
 }
 message GetResponse{
@@ -43,21 +43,21 @@ message GetResponse{
 }
 // keys are always hash value
 message PutRequest{
-  string pubkey = 1;
+  uint64 pubkey = 1;
   bytes value = 2;
 }
 message PutResponse{
   uint64 hash = 1;
 }
 message StartOpRequest{
-  string pubkey = 1; // lock with pubkey
+  uint64 pubkey = 1; // lock with pubkey
 }
 message CommitOpRequest{
-  string pubkey = 1;
+  uint64 pubkey = 1;
   VersionStruct v = 2;
 }
 message AbortOpRequest{
-  string pubkey = 1;
+  uint64 pubkey = 1;
 }
 message StartOpResponse{
   repeated bytes versions = 1;
