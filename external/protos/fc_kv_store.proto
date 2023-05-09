@@ -66,6 +66,10 @@ message CommitOpResponse{
 }
 message AbortOpResponse{
 }
+message HideUpdateRequest{
+  uint64 key = 1;
+  unit64 version = 2;
+}
 
 service FCKVStoreRPC {
   rpc FCKVStoreGet (GetRequest) returns (GetResponse) {}
@@ -73,5 +77,6 @@ service FCKVStoreRPC {
   rpc FCKVStoreStartOp (StartOpRequest) returns (StartOpResponse) {}
   rpc FCKVStoreCommitOp (CommitOpRequest) returns (CommitOpResponse) {}
   rpc FCKVStoreAbortOp (AbortOpRequest) returns (AbortOpResponse) {}
+  rpc FCKVServerHideUpdate (HideUpdateRequest) returns (HideUpdateResponse) {}
 }
 ////////////////// RPC end ////////////////
