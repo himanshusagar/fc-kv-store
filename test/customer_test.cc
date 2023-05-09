@@ -75,7 +75,30 @@ TEST_F(FCKVClientTest, PutGetMultipleClientsTest) {
   }
 }
 
-TEST_F(FCKVClientTest, ServerHidesUpdateTest) {
+TEST_F(FCKVClientTest, ServerTamperHideUpdate) {
+
+  std::string k1 = "keytest";
+  std::string v1 = "valuetest";
+
+  ASSERT_EQ(clients[0]->TamperInfo(k1, v1 , 1), 0);
+  ASSERT_EQ(clients[0]->Put(k1, v1), 0); // Should succeed.  
+  std::pair<int, std::string> reply = clients[0]->Get(k1);
+  ASSERT_EQ(reply.first, -1);
+  ASSERT_NE(reply.second, v1); // Should not be equal.
+
+}
+
+TEST_F(FCKVClientTest, ServerTamperBadData) {
+
+  std::string k1 = "keytestSecond";
+  std::string v1 = "valuetestSecond";
+
+  ASSERT_EQ(clients[0]->Put(k1, v1), 0); // Should succeed.  
+  ASSERT_EQ(clients[0]->TamperInfo(k1, v1 , 2), 0);
+  std::pair<int, std::string> reply = clients[0]->Get(k1);
+  ASSERT_EQ(reply.first, -1);
+  ASSERT_NE(reply.second, v1); // Should not be equal.
+
 }
 
 int main(int argc, char** argv) {

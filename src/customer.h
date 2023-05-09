@@ -36,6 +36,7 @@ public:
   
   std::pair<int, std::string> Get(std::string key);
   int Put(std::string key, std::string value);
+  int TamperInfo(std::string key, std::string value, int type);
   
 private:
   std::unique_ptr<FCKVStoreRPC::Stub> stub_;  // gRPC

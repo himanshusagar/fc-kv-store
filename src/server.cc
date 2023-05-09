@@ -77,7 +77,10 @@ Status FCKVStoreRPCServiceImpl::FCKVStorePut(
     leveldb::Status status;
     std::string val = request->value();
     size_t hashval = hasher_(val);
-    status = store_->Put(leveldb::WriteOptions(), std::to_string(hashval), val);
+
+    if(tamper_info_ != ServerTamperInfoHideUpdate)
+      status = store_->Put(leveldb::WriteOptions(), std::to_string(hashval), val);
+
     if (status.ok()) {
       std::cout << "Store Put OK" << std::endl;
       reply->set_hash(hashval);
@@ -88,6 +91,45 @@ Status FCKVStoreRPCServiceImpl::FCKVStorePut(
   } else {
     return Status(grpc::StatusCode::UNAVAILABLE, "");
   }
+}
+
+  Status FCKVStoreRPCServiceImpl::FCKVServerTamperInfo(ServerContext* context, const TamperInfoRequest* request,
+                      TamperInfoResponse* reply) {
+
+  tamper_info_ = (ServerTamperInfo)request->tampertype();
+  if(tamper_info_ == ServerTamperInfoBadData)
+  {
+    std::cout << "Server in TamperInfo method" << std::endl;
+    leveldb::Status status;
+    std::string val = request->value();
+    size_t hashval = hasher_(val);
+    std::string data = ""; // let's put NULL
+    status = store_->Put(leveldb::WriteOptions(), std::to_string(hashval), data);
+
+    if (status.ok()) {
+      std::cout << "TamperInfo ServerTamperInfoBadData OK" << std::endl;
+      reply->set_value(0); // success/
+      return Status::OK;
+    }
+  }
+  else if(tamper_info_ == ServerTamperInfoHideUpdate)
+  {
+    // Puts will fail now.
+    std::cout << "TamperInfo ServerTamperInfoHideUpdate OK" << std::endl;
+    reply->set_value(0); // success/
+    return Status::OK;
+  }
+  else
+  {
+     // Nothing will fail now.
+    std::cout << "TamperInfo ServerTamperInfoNone OK" << std::endl;
+    reply->set_value(0); // success/
+    return Status::OK;
+  }
+
+  std::cout << "Server TamperInfo error with tamper_info_ " << tamper_info_ << std::endl;
+  return Status(grpc::StatusCode::UNKNOWN, "");
+  
 }
 
 void sigintHandler(int sig_num)

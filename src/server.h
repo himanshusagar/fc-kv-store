@@ -27,6 +27,9 @@ using fc_kv_store::AbortOpRequest;
 using fc_kv_store::AbortOpResponse;
 using fc_kv_store::VersionStruct;
 
+using fc_kv_store::TamperInfoRequest;
+using fc_kv_store::TamperInfoResponse;
+
 
 class FCKVStoreRPCServiceImpl final : public FCKVStoreRPC::Service
 {
@@ -57,9 +60,22 @@ public:
   Status FCKVStorePut(ServerContext* context, const PutRequest* request,
                       PutResponse* reply) override;
 
+  Status FCKVServerTamperInfo(ServerContext* context, const TamperInfoRequest* request,
+                      TamperInfoResponse* reply) override;
+
+
+  enum ServerTamperInfo
+  {
+    ServerTamperInfoNone = 0,
+    ServerTamperInfoHideUpdate = 1,
+    ServerTamperInfoBadData = 2
+  };
+
 private:
   leveldb::DB* store_;
   std::map<size_t, std::string> vsl_; // hash(pubkey) -> VersionStruct as str
   std::hash<std::string> hasher_;
   std::atomic<size_t> lock_;
+  ServerTamperInfo tamper_info_;
+  
 };

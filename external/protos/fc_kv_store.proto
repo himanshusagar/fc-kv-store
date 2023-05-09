@@ -66,10 +66,16 @@ message CommitOpResponse{
 }
 message AbortOpResponse{
 }
-message HideUpdateRequest{
-  uint64 key = 1;
-  unit64 version = 2;
+message TamperInfoRequest{
+  uint64 tamperType = 1;
+  uint64 key = 2;
+  bytes value = 3;
 }
+
+message TamperInfoResponse{
+  uint64 value = 1;
+}
+
 
 service FCKVStoreRPC {
   rpc FCKVStoreGet (GetRequest) returns (GetResponse) {}
@@ -77,6 +83,6 @@ service FCKVStoreRPC {
   rpc FCKVStoreStartOp (StartOpRequest) returns (StartOpResponse) {}
   rpc FCKVStoreCommitOp (CommitOpRequest) returns (CommitOpResponse) {}
   rpc FCKVStoreAbortOp (AbortOpRequest) returns (AbortOpResponse) {}
-  rpc FCKVServerHideUpdate (HideUpdateRequest) returns (HideUpdateResponse) {}
+  rpc FCKVServerTamperInfo (TamperInfoRequest) returns (TamperInfoResponse) {}
 }
 ////////////////// RPC end ////////////////

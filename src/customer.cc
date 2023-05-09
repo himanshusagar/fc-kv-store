@@ -22,6 +22,10 @@ using fc_kv_store::AbortOpRequest;
 using fc_kv_store::AbortOpResponse;
 using fc_kv_store::UserVersion;
 
+using fc_kv_store::TamperInfoRequest;
+using fc_kv_store::TamperInfoResponse;
+
+
 // std::string privateKeyFile = "private_key.pem";
 // std::string publicKeyFile = "public_key.pem";
 
@@ -176,6 +180,28 @@ std::pair<int, std::string> FCKVClient::Get(std::string key) {
   std::cout << status.error_code() << ": " << status.error_message()
             << std::endl;
   return std::make_pair(-1, "Error occurred");
+}
+
+int FCKVClient::TamperInfo(std::string key, std::string value, int type)
+{
+  TamperInfoRequest req;
+  TamperInfoResponse reply;
+  ClientContext context;
+  req.set_key(hasher_(pubkey_));
+  req.set_value(value);
+
+  if(type == 1)
+  {
+    req.set_tampertype(1); // ServerTamperInfoHideUpdate
+  }
+  else if(type == 2)
+  {
+    req.set_tampertype(2); // ServerTamperInfoHideUpdate
+  }
+  Status status = stub_->FCKVServerTamperInfo(&context, req, &reply);
+  if(status.ok())
+    return 0;
+  return 1;
 }
 
 int FCKVClient::Put(std::string key, std::string value) {
